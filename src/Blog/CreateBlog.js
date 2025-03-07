@@ -1,106 +1,119 @@
-import React, { useEffect, useState } from "react";
-import { Card, Button, Container, Row, Col, Form } from "react-bootstrap";
-import Api from "../Api";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Api from "../Api";
+import { Form, Button, Container, Card } from "react-bootstrap";
+import "./BlogList.css";
 
-function BlogList() {
-  const [blogs, setBlogs] = useState([]);
-  const [filteredBlogs, setFilteredBlogs] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState("All");
+function CreateBlog() {
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [category, setCategory] = useState("");
+  const [image, setImage] = useState(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchBlogs = async () => {
-      try {
-        const res = await Api.get("/blogs/getallblogs");
-        console.log("ress", res);
+  const handleImageChange = (e) => {
+    setImage(e.target.files[0]);
+  };
 
-        const blogsData = res?.data || [];
-        setBlogs(blogsData);
-        setFilteredBlogs(blogsData);
-        const uniqueCategories = [
-          "All",
-          ...new Set(blogsData.map((blog) => blog.category)),
-        ];
-        setCategories(uniqueCategories);
-      } catch (error) {
-        console.error("Error fetching blogs", error);
-      }
-    };
-    fetchBlogs();
-  }, []);
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    const formData = new FormData();
+    formData.append("title", title);
+    formData.append("content", content);
+    formData.append("category", category);
+    if (image) formData.append("image", image);
 
-  const handleCategoryChange = (event) => {
-    const category = event.target.value;
-    setSelectedCategory(category);
+    const token = localStorage.getItem("token");
 
-    if (category === "All") {
-      setFilteredBlogs(blogs);
-    } else {
-      setFilteredBlogs(blogs.filter((blog) => blog.category === category));
+    try {
+      await Api.post("/blogs/blogs", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          "x-auth-token": token,
+        },
+      });
+      navigate("/bloglist");
+    } catch (error) {
+      console.error("Error creating blog", error);
     }
   };
 
-  const handleReadMore = (blog) => {
-    navigate("/blogdetails", { state: { blog } });
-  };
-
   return (
-    <Container className="mt-4">
-      <h2 className="text-center mb-4">Latest Blogs</h2>
+    <Container className="create-blog-container">
+      <Card className="create-blog-card">
+        <h2 className="create-blog-title">Create a New Blog</h2>
+        <Form onSubmit={handleCreate}>
+          <Form.Group className="create-blog-form-group">
+            <Form.Label className="create-blog-label">Title</Form.Label>
+            <Form.Control
+              className="create-blog-input"
+              type="text"
+              placeholder="Enter blog title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+            />
+          </Form.Group>
 
-      <Form.Group className="mb-3 text-center">
-        <Form.Label>
-          <b>Filter by Category:</b>
-        </Form.Label>
-        <Form.Select
-          value={selectedCategory}
-          onChange={handleCategoryChange}
-          style={{ maxWidth: "300px", margin: "0 auto" }}
-        >
-          {categories.map((category, index) => (
-            <option key={index} value={category}>
-              {category}
-            </option>
-          ))}
-        </Form.Select>
-      </Form.Group>
+          <Form.Group className="create-blog-form-group">
+            <Form.Label className="create-blog-label">Content</Form.Label>
+            <Form.Control
+              className="create-blog-textarea"
+              as="textarea"
+              rows={5}
+              placeholder="Write your content here..."
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              required
+            />
+          </Form.Group>
 
-      {filteredBlogs.length === 0 ? (
-        <p className="text-center">No blogs found.</p>
-      ) : (
-        <Row>
-          {filteredBlogs.map((blog) => (
-            <Col key={blog._id} md={4} className="mb-4">
-              <Card className="shadow-sm">
-                {blog.image && (
-                  <Card.Img
-                    variant="top"
-                    src={blog.image}
-                    alt={blog.title}
-                    style={{ height: "200px", objectFit: "cover" }}
-                  />
-                )}
-                <Card.Body>
-                  <Card.Title>{blog.title}</Card.Title>
-                  <Card.Text>{blog.content.substring(0, 100)}...</Card.Text>
-                  <Button onClick={() => handleReadMore(blog)}>
-                    Read More
-                  </Button>
-                </Card.Body>
-                <Card.Footer>
-                  <small className="text-muted">
-                    By {blog.author?.name || "Unknown"}
-                  </small>
-                </Card.Footer>
-              </Card>
-            </Col>
-          ))}
-        </Row>
-      )}
+          <Form.Group className="create-blog-form-group">
+            <Form.Label className="create-blog-label">Category</Form.Label>
+            <Form.Select
+              className="create-blog-select"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              required
+            >
+              <option value="">Select Category</option>
+              <option value="Technology">Technology</option>
+              <option value="Education">Education</option>
+              <option value="Lifestyle">Lifestyle</option>
+            </Form.Select>
+          </Form.Group>
+
+          <Form.Group className="create-blog-form-group">
+            <Form.Label className="create-blog-label">Upload Image</Form.Label>
+            <Form.Control
+              className="create-blog-file"
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+            />
+          </Form.Group>
+
+          {image && (
+            <div className="create-blog-image-preview">
+              <img
+                src={URL.createObjectURL(image)}
+                alt="Preview"
+                className="create-blog-preview-img"
+              />
+            </div>
+          )}
+
+          <Button
+            variant="primary"
+            type="submit"
+            className="create-blog-submit-btn"
+          >
+            Publish Blog
+          </Button>
+        </Form>
+      </Card>
     </Container>
   );
 }
 
-export default BlogList;
+export default CreateBlog;

@@ -93,14 +93,19 @@ export const getAllBlogs = async (req, res) => {
   }
 };
 
+
 export const createComment = async (req, res) => {
   try {
     const { blogId, text } = req.body;
+    if (!text.trim()) {
+      return res.status(400).json({ msg: "Comment cannot be empty" });
+    }
 
     const comment = new Comment({
       blogId,
       userId: req.user.id,
       text,
+      status: "",
     });
 
     await comment.save();
@@ -110,16 +115,77 @@ export const createComment = async (req, res) => {
   }
 };
 
-export const getUserProfile = async (req, res) => {
+
+export const getComments = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select("-password");
+    const { blogId } = req.query; 
+    if (!blogId) {
+      return res.status(400).json({ msg: "Blog ID is required" });
+    }
 
-    if (!user) return res.status(404).json({ msg: "User not found" });
+    const comments = await Comment.find({ blogId })
+      .populate("userId", "name") 
+      .sort({ createdAt: -1 }); 
 
-    res.json(user);
+    res.status(200).json(comments);
   } catch (err) {
-    console.error("Error fetching user profile:", err);
-    res.status(500).json({ msg: "Server error" });
+    console.error("Error retrieving comments:", err);
+    res.status(500).json({ msg: "Error retrieving comments", error: err.message });
   }
 };
 
+export const deleteComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+
+    const comment = await Comment.findById(commentId);
+    if (!comment) {
+      return res.status(404).json({ msg: "Comment not found" });
+    }
+
+    if (comment.userId.toString() !== req.user.id) {
+      return res.status(403).json({ msg: "Not authorized to delete this comment" });
+    }
+
+    await Comment.findByIdAndDelete(commentId);
+    res.json({ msg: "Comment deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ msg: "Error deleting comment", error });
+  }
+};
+
+export const getUserLikes = async (req, res) => {
+  try {
+    const { userID } = req.params;
+    const likes = await Comment.find({ userId: userID });
+
+    const likeStatus = likes.reduce((acc, like) => {
+      acc[like.blogId] = like.status;
+      return acc;
+    }, {});
+
+    res.json(likeStatus);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching likes", error });
+  }
+};
+
+export const toggleLike = async (req, res) => {
+  try {
+    const { blogId } = req.params;
+    const userID = req.user.id;
+
+    let likeRecord = await Comment.findOne({ userId: userID, blogId });
+
+    if (!likeRecord) {
+      return res.status(404).json({ msg: "Comment not found" });
+    }
+
+    likeRecord.status = likeRecord.status === "liked" ? "" : "liked";
+
+    await likeRecord.save();
+    res.json({ message: "Success", status: likeRecord.status });
+  } catch (error) {
+    res.status(500).json({ message: "Error toggling like", error });
+  }
+};
